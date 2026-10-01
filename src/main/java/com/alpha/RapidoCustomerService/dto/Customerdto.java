@@ -2,7 +2,7 @@ package com.alpha.RapidoCustomerService.dto;
 
 public class Customerdto {
 		
-	private int id;
+	
 	private String name;
 	private long mobile;
 	private String email;

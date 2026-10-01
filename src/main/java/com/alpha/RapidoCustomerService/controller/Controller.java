@@ -1,5 +1,7 @@
 package com.alpha.RapidoCustomerService.controller;
 
+import java.util.List;
+
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -9,6 +11,7 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import com.alpha.RapidoCustomerService.Customerservice;
+import com.alpha.RapidoCustomerService.dto.CustomerRideRequestDto;
 import com.alpha.RapidoCustomerService.dto.Customerdto;
 import com.alpha.RapidoCustomerService.dto.FareDto;
 import com.alpha.RapidoCustomerService.dto.ResponseStructure;
@@ -46,9 +49,18 @@ public class Controller {
 		
 	}
 	
-	@PostMapping("customer/confirmride")
-	public ResponseStructure<String> confirmride(@RequestParam int cid,@RequestParam String vehc) {
-		return customerservice.confirride(cid,vehc);
+//	@PostMapping("customer/confirmride")
+//	public ResponseStructure<String> confirmride(@RequestParam int cid,@RequestParam String vehc) {
+//		return customerservice.confirride(cid,vehc);
+//	}
+	@PostMapping("/customer/confirmride")
+	public ResponseStructure<String> confiride(@RequestParam int cid,@RequestParam String vehc){
+		return customerservice.confirmride(cid,vehc);
+	}
+	
+	@PostMapping("/customer/requestride")
+	public List<String> requestRide( @RequestParam int cid,@RequestParam String vehc,@RequestBody CustomerRideRequestDto dto) {
+	    return customerservice.requestRide(cid, vehc, dto);
 	}
 	 
 }

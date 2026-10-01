@@ -11,6 +11,15 @@ import java.util.Map;
 
 import org.jspecify.annotations.Nullable;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Qualifier;
+import org.springframework.data.geo.Circle;
+import org.springframework.data.geo.Distance;
+import org.springframework.data.geo.GeoResult;
+import org.springframework.data.geo.GeoResults;
+import org.springframework.data.geo.Metrics;
+import org.springframework.data.geo.Point;
+import org.springframework.data.redis.connection.RedisGeoCommands;
+import org.springframework.data.redis.connection.RedisGeoCommands.GeoLocation;
 import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
@@ -18,9 +27,11 @@ import org.springframework.web.client.RestTemplate;
 
 import com.alpha.RapidoCustomerService.dto.Addressdto;
 import com.alpha.RapidoCustomerService.dto.Bookingdto;
+import com.alpha.RapidoCustomerService.dto.CustomerRideRequestDto;
 import com.alpha.RapidoCustomerService.dto.Customerdto;
 import com.alpha.RapidoCustomerService.dto.FareDto;
 import com.alpha.RapidoCustomerService.dto.ResponseStructure;
+import com.alpha.RapidoCustomerService.dto.RideRequestDto;
 import com.alpha.RapidoCustomerService.dto.SearchDestinationLocationDto;
 import com.alpha.RapidoCustomerService.dto.SelectRideDto;
 import com.alpha.RapidoCustomerService.entity.Address;
@@ -30,6 +41,7 @@ import com.alpha.RapidoCustomerService.entity.Customer;
 import com.alpha.RapidoCustomerService.exception.CustomerNotFound;
 import com.alpha.RapidoCustomerService.repository.Adressrepo;
 import com.alpha.RapidoCustomerService.repository.BookingRepo;
+import com.alpha.RapidoCustomerService.repository.CoordinateRepo;
 import com.alpha.RapidoCustomerService.repository.CustomerRepo;
 
 @Service
@@ -48,7 +60,19 @@ public class Customerservice {
 	private Adressrepo addrepo;
 	
 	@Autowired
+	private CoordinateRepo coordinateRepo;
+	
+	@Autowired
 	private RedisTemplate<String,Map<String,Object>> redistemplate;
+	
+	@Autowired
+	@Qualifier("geoRedisTemplate")
+	private RedisTemplate<String, String> geoRedisTemplate;
+	
+	
+	@Autowired
+	@Qualifier("rideRequestRedisTemplate")
+	private RedisTemplate<String, RideRequestDto> rideRequestRedisTemplate;
 	
 	public String genotp(long mobile) {
 		Customer cc=  customerrepo.findByMobile(mobile).orElseThrow(()-> new CustomerNotFound());
@@ -209,96 +233,175 @@ public class Customerservice {
 		fdto.setDestination(finaldesti);
 		fdto.setFare(fares);
 		return fdto;
-		
 	}
 
-	public ResponseStructure<String> confirride(int cid, String vehc) {
-		Customer c=customerrepo.findById(cid).orElseThrow(()->new CustomerNotFound());
-		String id = String.valueOf(cid);
-		  Map<String, Object> redata= redistemplate.opsForValue().get(id);
-		  
-		  String source = (String) redata.get("source");
-		  String destination = (String) redata.get("destination");
-		  
-		  String sourceCoordinates =source.split("coordinates:")[1].trim();
-		  String destinationCoordinates =destination.split("coordinates:")[1].trim();
-		  String[] sourceCoord = sourceCoordinates.split(",");
-		  String[] destinationCoord = destinationCoordinates.split(",");
-		  
-		  double slati = Double.parseDouble(sourceCoord[0]);
-		  double slong = Double.parseDouble(sourceCoord[1]);
-		  double dlati = Double.parseDouble(destinationCoord[0]);
-		  double dlong = Double.parseDouble(destinationCoord[1]);
-		  
-		  
-		  
-//		  getting source and destination latitude details from redis to pass to getAdressDetails() method to get List<Adreesdto> 
-		  String des = (String) redata.get("destination");
-		  String sou = (String) redata.get("source");
-		  
-		  Address pickloc = new Address();
-		  List<Addressdto> addresses =getAdressDetails(slati, slong, dlati, dlong);
-			Addressdto sadd = addresses.get(0);
-			Addressdto dadd = addresses.get(1);
-		  
-//		  saving source adreess
-		  Address soadd = new Address();
-		  soadd.setBuildingname(sadd.getBuildingname());
-		  soadd.setCity(sadd.getCity());
-		  soadd.setCountry(sadd.getCountry());
-		  soadd.setLandmark(sadd.getLandmark());
-		  soadd.setPincode(sadd.getPincode());
-		  soadd.setState(sadd.getState());
-		  soadd.setStreet(sadd.getStreet());
-		  addrepo.save(soadd);
-		  
-//		  saving destination adress
-		  Address disadd = new Address();
-		  disadd.setBuildingname(dadd.getBuildingname());
-		  disadd.setCity(dadd.getCity());
-		  disadd.setCountry(dadd.getCountry());
-		  disadd.setLandmark(dadd.getLandmark());
-		  disadd.setPincode(dadd.getPincode());
-		  disadd.setState(dadd.getState());
-		  disadd.setStreet(dadd.getStreet());
-		  addrepo.save(disadd);
-		  
-		  Booking b= new Booking();
-		  LocalDate today=LocalDate.now();
-		  DateTimeFormatter date=DateTimeFormatter.ofPattern("dd-MM-yyyy");
-		  String bdate = today.format(date);
-		  b.setBookingdate(bdate);
-		  LocalTime now = LocalTime.now();
-		  DateTimeFormatter time = DateTimeFormatter.ofPattern("HH:mm:ss");
-		  String btime = now.format(time);
-		  b.setBookingtime(bdate);
-		  b.setBookingtime(btime);
-		  b.setCustomer(c);
-		  b.setDestinationloc(disadd);
-		  b.setDroptime(null);
-		  
-		  Map<String, Object> fares =(Map<String, Object>) redata.get("Fares");
-		  String vfair = String.valueOf(fares.get(vehc));
-		  b.setFare(vfair);
-		  b.setPaymenttype("Pending");
-		  b.setPickuploc(soadd);
-		  b.setPickuptime(null);
-		  b.setRiderid(0);
-		  b.setVehicletype(vehc);
-		  bookrepo.save(b);
-		  
-		  redistemplate.delete(id);
-		  
-		  ResponseStructure<String> rs = new ResponseStructure<String>();
-		  rs.setStatuscode(HttpStatus.ACCEPTED.value());
-		  rs.setMessage("Booking Done");
-		  rs.setData("Booked");
-		  return rs;
-		
-	}
 	
 
+//	public ResponseStructure<String> confirride(int cid, String vehc) {
+//		Customer c=customerrepo.findById(cid).orElseThrow(()->new CustomerNotFound());
+//		String id = String.valueOf(cid);
+//		  Map<String, Object> redata= redistemplate.opsForValue().get(id);
+//		  
+//		  String source = (String) redata.get("source");
+//		  String destination = (String) redata.get("destination");
+//		  
+//		  String sourceCoordinates =source.split("coordinates:")[1].trim();
+//		  String destinationCoordinates =destination.split("coordinates :")[1].trim();
+//		  String[] sourceCoord = sourceCoordinates.split(",");
+//		  String[] destinationCoord = destinationCoordinates.split(",");
+//		  
+//		  double slati = Double.parseDouble(sourceCoord[0]);
+//		  double slong = Double.parseDouble(sourceCoord[1]);
+//		  double dlati = Double.parseDouble(destinationCoord[0]);
+//		  double dlong = Double.parseDouble(destinationCoord[1]);
+//		  
+//		  
+//		  
+////		  getting source and destination latitude details from redis to pass to getAdressDetails() method to get List<Adreesdto> 
+//		  String des = (String) redata.get("destination");
+//		  String sou = (String) redata.get("source");
+//		  
+//		  Address pickloc = new Address();
+//		  List<Addressdto> addresses =getAdressDetails(slati, slong, dlati, dlong);
+//			Addressdto sadd = addresses.get(0);
+//			Addressdto dadd = addresses.get(1);
+//		  
+////		  saving source adreess
+//		  Address soadd = new Address();
+//		  soadd.setBuildingname(sadd.getBuildingname());
+//		  soadd.setCity(sadd.getCity());
+//		  soadd.setCountry(sadd.getCountry());
+//		  soadd.setLandmark(sadd.getLandmark());
+//		  soadd.setPincode(sadd.getPincode());
+//		  soadd.setState(sadd.getState());
+//		  soadd.setStreet(sadd.getStreet());
+//		  addrepo.save(soadd);
+//		  
+////		  saving destination adress
+//		  Address disadd = new Address();
+//		  disadd.setBuildingname(dadd.getBuildingname());
+//		  disadd.setCity(dadd.getCity());
+//		  disadd.setCountry(dadd.getCountry());
+//		  disadd.setLandmark(dadd.getLandmark());
+//		  disadd.setPincode(dadd.getPincode());
+//		  disadd.setState(dadd.getState());
+//		  disadd.setStreet(dadd.getStreet());
+//		  addrepo.save(disadd);
+//		  
+//		  Booking b= new Booking();
+//		  LocalDate today=LocalDate.now();
+//		  DateTimeFormatter date=DateTimeFormatter.ofPattern("dd-MM-yyyy");
+//		  String bdate = today.format(date);
+//		  b.setBookingdate(bdate);
+//		  LocalTime now = LocalTime.now();
+//		  DateTimeFormatter time = DateTimeFormatter.ofPattern("HH:mm:ss");
+//		  String btime = now.format(time);
+//		  b.setBookingtime(bdate);
+//		  b.setBookingtime(btime);
+//		  b.setCustomer(c);
+//		  b.setDestinationloc(disadd);
+//		  b.setDroptime(null);
+//		  
+//		  Map<String, Object> fares =(Map<String, Object>) redata.get("Fares");
+//		  String vfair = String.valueOf(fares.get(vehc));
+//		  b.setFare(vfair);
+//		  b.setPaymenttype("Pending");
+//		  b.setPickuploc(soadd);
+//		  b.setPickuptime(null);
+//		  b.setRiderid(1);
+//		  b.setVehicletype(vehc);
+//		  bookrepo.save(b);
+//		  redistemplate.delete(id);
+//		  ResponseStructure<String> rs = new ResponseStructure<String>();
+//		  rs.setStatuscode(HttpStatus.ACCEPTED.value());
+//		  rs.setMessage("Booking Done");
+//		  rs.setData("Booked");
+//		  return rs;
+//	}
+	
 
+public ResponseStructure<String> confirmride(int cid, String vehc) {
+	Customer c=customerrepo.findById(cid).orElseThrow(()->new CustomerNotFound());
+	
+	  String id = String.valueOf(cid);
+	  Map<String, Object> redata= redistemplate.opsForValue().get(id);
+	  
+	  String source = (String) redata.get("source");
+	  String destination = (String) redata.get("destination");
+	  
+	  String sourceCoordinates =source.split("coordinates:")[1].trim();
+	  String destinationCoordinates =destination.split("coordinates:")[1].trim();
+	  String[] sourceCoord = sourceCoordinates.split(",");
+	  String[] destinationCoord = destinationCoordinates.split(",");
+	  
+	  double slati = Double.parseDouble(sourceCoord[0]);
+	  double slong = Double.parseDouble(sourceCoord[1]);
+	  double dlati = Double.parseDouble(destinationCoord[0]);
+	  double dlong = Double.parseDouble(destinationCoord[1]);
+	  Coordinates sourceco=new Coordinates();
+	  sourceco.setLati(slati);
+	  sourceco.setLongi(slong);
+	  Coordinates destinationco=new Coordinates();
+	  destinationco.setLati(dlati);
+	  destinationco.setLongi(dlong);
+	  coordinateRepo.save(sourceco);
+	  coordinateRepo.save(destinationco);
+	  Booking b= new Booking();
+	  LocalDate today=LocalDate.now();
+	  DateTimeFormatter date=DateTimeFormatter.ofPattern("dd-MM-yyyy");
+	  String bdate = today.format(date);
+	  b.setBookingdate(bdate);
+	  LocalTime now = LocalTime.now();
+	  DateTimeFormatter time = DateTimeFormatter.ofPattern("HH:mm:ss");
+	  String btime = now.format(time);
+	  b.setBookingtime(btime);
+	  b.setCustomer(c);
+	  b.setDestinationloc(destinationCoordinates);
+	  b.setPickuploc(sourceCoordinates);
+	  b.setDroptime(null);
+	 Map<String, Object> fares =(Map<String, Object>) redata.get("Fares");
+	  String vfair = String.valueOf(fares.get(vehc));
+	  b.setFare(vfair);
+	  b.setPaymenttype("Pending");
+	  b.setPickuploc(sourceCoordinates);
+	  b.setPickuptime(null);
+	  b.setRiderid(1);
+	  b.setVehicletype(vehc);
+	  b.setSource(sourceco);
+	  b.setDestination(destinationco);
+	  bookrepo.save(b);
+	  redistemplate.delete(id);
+	  ResponseStructure<String> rs = new ResponseStructure<String>();
+	  rs.setStatuscode(HttpStatus.ACCEPTED.value());
+	  rs.setMessage("Booking Done");
+	  rs.setData("Booked");
+	  return rs;
+	}
+
+public List<String> requestRide(int cid, String vehc, CustomerRideRequestDto dto) {
+	Customer c = customerrepo.findById(cid).orElseThrow(()-> new CustomerNotFound());
+	Point p = new Point(dto.getPickupLongitude(), dto.getPickupLatitude());
+	Circle ci = new Circle(p,new Distance(2, Metrics.KILOMETERS));
+	GeoResults<GeoLocation<String>> results = geoRedisTemplate.opsForGeo().search(vehc.toLowerCase(), ci);
+	
+	RideRequestDto rd = new RideRequestDto();
+	rd.setCustomerId(cid);
+	rd.setVehicleType(vehc);
+	rd.setPickupLongitude(dto.getPickupLongitude());
+	rd.setPickupLatitude(dto.getPickupLatitude());
+	rd.setDropLatitude(dto.getDropLatitude());
+	rd.setDropLongitude(dto.getDropLongitude());
+	List<String>  sent = new ArrayList<String>();
+	for (GeoResult<GeoLocation<String>> res : results) {
+		String riderId = res.getContent().getName();
+		String channel = "ride-request:" + riderId;
+		rideRequestRedisTemplate.convertAndSend(channel, rd);
+		System.out.println("Request pushed to " + riderId);
+		sent.add(riderId);
+	}
+	
+	return sent;
+}
 	
 	
 	

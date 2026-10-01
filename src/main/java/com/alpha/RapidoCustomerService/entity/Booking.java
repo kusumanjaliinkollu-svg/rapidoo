@@ -6,6 +6,7 @@ import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
 import jakarta.persistence.ManyToOne;
+import jakarta.persistence.OneToOne;
 
 @Entity
 public class Booking {
@@ -15,11 +16,12 @@ public class Booking {
 	private int id;
 	@ManyToOne
 	private Customer customer;
-	@ManyToOne
-	private Address pickuploc;
-	@ManyToOne
-	private Address destinationloc;
-	
+	@OneToOne
+	private Coordinates source;
+	@OneToOne
+	private Coordinates destination;
+	private String destinationloc;
+	private String pickuploc;
 	private String paymenttype;
 	private String vehicletype;
 	private int riderid;
@@ -32,8 +34,8 @@ public class Booking {
 		super();
 	}
 	
-	public Booking(Customer customer, Address pickuploc, Address destinationloc, String paymenttype, String vehicletype,
-			int riderid, String bookingdate, String bookingtime, String pickuptime, String droptime, String fare) {
+	public Booking(Customer customer, String pickuploc, String destinationloc, String paymenttype, String vehicletype,
+			int riderid, String bookingdate, String bookingtime, String pickuptime, String droptime, String fare,Coordinates source,Coordinates destination) {
 		super();
 		this.customer = customer;
 		this.pickuploc = pickuploc;
@@ -60,16 +62,16 @@ public class Booking {
 	public void setCustomer(Customer customer) {
 		this.customer = customer;
 	}
-	public Address getPickuploc() {
+	public String getPickuploc() {
 		return pickuploc;
 	}
-	public void setPickuploc(Address pickuploc) {
+	public void setPickuploc(String pickuploc) {
 		this.pickuploc = pickuploc;
 	}
-	public Address getDestinationloc() {
+	public String getDestinationloc() {
 		return destinationloc;
 	}
-	public void setDestinationloc(Address destinationloc) {
+	public void setDestinationloc(String destinationloc) {
 		this.destinationloc = destinationloc;
 	}
 	public String getPaymenttype() {
@@ -129,6 +131,22 @@ public class Booking {
 
 	public void setFare(String fare) {
 		this.fare = fare;
+	}
+
+	public Coordinates getSource() {
+		return source;
+	}
+
+	public void setSource(Coordinates source) {
+		this.source = source;
+	}
+
+	public Coordinates getDestination() {
+		return destination;
+	}
+
+	public void setDestination(Coordinates destination) {
+		this.destination = destination;
 	}
 	
 	
