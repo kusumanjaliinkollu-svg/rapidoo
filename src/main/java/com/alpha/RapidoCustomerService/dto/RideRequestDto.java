@@ -1,6 +1,7 @@
 package com.alpha.RapidoCustomerService.dto;
 
 public class RideRequestDto {
+	private int rideId;
 	private int customerId;
     private String vehicleType;
 
@@ -9,9 +10,10 @@ public class RideRequestDto {
 
     private double dropLatitude;
     private double dropLongitude;
-	public RideRequestDto(int customerId, String vehicleType, double pickupLatitude, double pickupLongitude,
+	public RideRequestDto(int rideId, int customerId, String vehicleType, double pickupLatitude, double pickupLongitude,
 			double dropLatitude, double dropLongitude) {
 		super();
+		this.rideId=rideId;
 		this.customerId = customerId;
 		this.vehicleType = vehicleType;
 		this.pickupLatitude = pickupLatitude;
@@ -24,6 +26,12 @@ public class RideRequestDto {
 	}
 	public int getCustomerId() {
 		return customerId;
+	}
+	public int getRideId() {
+		return rideId;
+	}
+	public void setRideId(int rideId) {
+		this.rideId = rideId;
 	}
 	public void setCustomerId(int customerId) {
 		this.customerId = customerId;

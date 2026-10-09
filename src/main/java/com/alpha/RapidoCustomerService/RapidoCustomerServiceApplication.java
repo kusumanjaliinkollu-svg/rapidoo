@@ -46,26 +46,6 @@ public class RapidoCustomerServiceApplication {
 		 
 		return redisTemplate ;
 	}
-	
-	@Bean
-	public RedisTemplate<String, String> geoRedisTemplate() {
-
-	    RedisTemplate<String, String> redisTemplate = new RedisTemplate<>();
-
-	    redisTemplate.setConnectionFactory(redisConnectionFactory);
-
-	    StringRedisSerializer serializer = new StringRedisSerializer();
-
-	    redisTemplate.setKeySerializer(serializer);
-	    redisTemplate.setValueSerializer(serializer);
-	    redisTemplate.setHashKeySerializer(serializer);
-	    redisTemplate.setHashValueSerializer(serializer);
-
-	    redisTemplate.afterPropertiesSet();
-
-	    return redisTemplate;
-	}
-	
 	@Bean
 	public RedisTemplate<String, RideRequestDto> rideRequestRedisTemplate() {
 
@@ -80,4 +60,44 @@ public class RapidoCustomerServiceApplication {
 
 	    return template;
 	}
+	@Bean
+	public RedisTemplate<String, String> geoRedisTemplate(
+	        RedisConnectionFactory redisConnectionFactory) {
+
+	    RedisTemplate<String, String> template = new RedisTemplate<>();
+
+	    template.setConnectionFactory(redisConnectionFactory);
+
+	    StringRedisSerializer serializer = new StringRedisSerializer();
+
+	    template.setKeySerializer(serializer);
+	    template.setValueSerializer(serializer);
+	    template.setHashKeySerializer(serializer);
+	    template.setHashValueSerializer(serializer);
+
+	    template.afterPropertiesSet();
+
+	    return template;
+	}
+	
+	@Bean
+	public RedisTemplate<String, String> bookingRedisTemplate() {
+
+	    RedisTemplate<String, String> template = new RedisTemplate<>();
+
+	    template.setConnectionFactory(redisConnectionFactory);
+
+	    StringRedisSerializer serializer =
+	            new StringRedisSerializer();
+
+	    template.setKeySerializer(serializer);
+	    template.setValueSerializer(serializer);
+	    template.setHashKeySerializer(serializer);
+	    template.setHashValueSerializer(serializer);
+
+	    template.afterPropertiesSet();
+
+	    return template;
+	}
+	
 }

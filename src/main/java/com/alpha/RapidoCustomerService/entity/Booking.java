@@ -1,6 +1,7 @@
 package com.alpha.RapidoCustomerService.entity;
 
 import jakarta.persistence.Entity;
+import jakarta.persistence.Column;
 
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
@@ -14,6 +15,8 @@ public class Booking {
 	@Id
 	@GeneratedValue(strategy = GenerationType.AUTO)
 	private int id;
+	@Column(unique = true)
+	private String idempotencyId;
 	@ManyToOne
 	private Customer customer;
 	@OneToOne
@@ -30,12 +33,13 @@ public class Booking {
 	private String pickuptime;
 	private String droptime;
 	private String fare;
+	private String status;
 	public Booking() {
 		super();
 	}
 	
 	public Booking(Customer customer, String pickuploc, String destinationloc, String paymenttype, String vehicletype,
-			int riderid, String bookingdate, String bookingtime, String pickuptime, String droptime, String fare,Coordinates source,Coordinates destination) {
+			int riderid, String bookingdate, String bookingtime, String pickuptime, String droptime, String fare,Coordinates source,Coordinates destination,String status,String idempotencyId) {
 		super();
 		this.customer = customer;
 		this.pickuploc = pickuploc;
@@ -48,6 +52,8 @@ public class Booking {
 		this.pickuptime = pickuptime;
 		this.droptime = droptime;
 		this.fare = fare;
+		this.status=status;
+		this.idempotencyId=idempotencyId;
 	}
 
 	public int getId() {
@@ -147,6 +153,22 @@ public class Booking {
 
 	public void setDestination(Coordinates destination) {
 		this.destination = destination;
+	}
+
+	public String getStatus() {
+		return status;
+	}
+
+	public void setStatus(String status) {
+		this.status = status;
+	}
+
+	public String getIdempotencyId() {
+		return idempotencyId;
+	}
+
+	public void setIdempotencyId(String idempotencyId) {
+		this.idempotencyId = idempotencyId;
 	}
 	
 	

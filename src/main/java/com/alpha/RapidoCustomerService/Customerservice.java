@@ -1,6 +1,7 @@
 package com.alpha.RapidoCustomerService;
 
 import java.time.LocalDate;
+
 import java.time.LocalTime;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
@@ -8,6 +9,8 @@ import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
+import java.util.Random;
 
 import org.jspecify.annotations.Nullable;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -38,6 +41,7 @@ import com.alpha.RapidoCustomerService.entity.Address;
 import com.alpha.RapidoCustomerService.entity.Booking;
 import com.alpha.RapidoCustomerService.entity.Coordinates;
 import com.alpha.RapidoCustomerService.entity.Customer;
+import com.alpha.RapidoCustomerService.exception.BookingNotFound;
 import com.alpha.RapidoCustomerService.exception.CustomerNotFound;
 import com.alpha.RapidoCustomerService.repository.Adressrepo;
 import com.alpha.RapidoCustomerService.repository.BookingRepo;
@@ -73,6 +77,11 @@ public class Customerservice {
 	@Autowired
 	@Qualifier("rideRequestRedisTemplate")
 	private RedisTemplate<String, RideRequestDto> rideRequestRedisTemplate;
+	
+	
+	@Autowired
+	@Qualifier("bookingRedisTemplate")
+	private RedisTemplate<String, String> bookingRedisTemplate;
 	
 	public String genotp(long mobile) {
 		Customer cc=  customerrepo.findByMobile(mobile).orElseThrow(()-> new CustomerNotFound());
@@ -196,7 +205,6 @@ public class Customerservice {
 	}
 	
 	public FareDto selectrider(int cusid, SelectRideDto srdto) {
-		
 		Customer c=customerrepo.findById(cusid).orElseThrow(()->new CustomerNotFound());
 		Coordinates s=srdto.getSourceCordinate();
 		Coordinates d=srdto.getDestinationCordinate();
@@ -226,9 +234,7 @@ public class Customerservice {
 		
 		String id=String.valueOf(cusid);
 		redistemplate.opsForValue().set(id, value);
-		
-		
-		FareDto fdto=new FareDto();
+	    FareDto fdto=new FareDto();
 		fdto.setSource(finalsource);
 		fdto.setDestination(finaldesti);
 		fdto.setFare(fares);
@@ -319,63 +325,132 @@ public class Customerservice {
 //		  return rs;
 //	}
 	
+	public ResponseStructure<Map<String, Object>> confirmride(int cid,String vehc,int riderId, int rideId, String idempotencyId) {
+	   Customer c = customerrepo.findById(cid) .orElseThrow(() -> new CustomerNotFound());
+	   Optional<Booking> existingBooking = bookrepo.findByIdempotencyId(idempotencyId);
+	   if (idempotencyId == null || idempotencyId.isBlank()) {
+		   	ResponseStructure<Map<String, Object>> rs =new ResponseStructure<>();
+		    rs.setStatuscode(HttpStatus.BAD_REQUEST.value());
+		    rs.setMessage("Idempotency ID is required");
+		    rs.setData(null);        
+		    return rs;
+	}
+	   if (existingBooking.isPresent()) {
 
-public ResponseStructure<String> confirmride(int cid, String vehc) {
-	Customer c=customerrepo.findById(cid).orElseThrow(()->new CustomerNotFound());
-	
-	  String id = String.valueOf(cid);
-	  Map<String, Object> redata= redistemplate.opsForValue().get(id);
-	  
-	  String source = (String) redata.get("source");
-	  String destination = (String) redata.get("destination");
-	  
-	  String sourceCoordinates =source.split("coordinates:")[1].trim();
-	  String destinationCoordinates =destination.split("coordinates:")[1].trim();
-	  String[] sourceCoord = sourceCoordinates.split(",");
-	  String[] destinationCoord = destinationCoordinates.split(",");
-	  
-	  double slati = Double.parseDouble(sourceCoord[0]);
-	  double slong = Double.parseDouble(sourceCoord[1]);
-	  double dlati = Double.parseDouble(destinationCoord[0]);
-	  double dlong = Double.parseDouble(destinationCoord[1]);
-	  Coordinates sourceco=new Coordinates();
-	  sourceco.setLati(slati);
-	  sourceco.setLongi(slong);
-	  Coordinates destinationco=new Coordinates();
-	  destinationco.setLati(dlati);
-	  destinationco.setLongi(dlong);
-	  coordinateRepo.save(sourceco);
-	  coordinateRepo.save(destinationco);
-	  Booking b= new Booking();
-	  LocalDate today=LocalDate.now();
-	  DateTimeFormatter date=DateTimeFormatter.ofPattern("dd-MM-yyyy");
-	  String bdate = today.format(date);
-	  b.setBookingdate(bdate);
-	  LocalTime now = LocalTime.now();
-	  DateTimeFormatter time = DateTimeFormatter.ofPattern("HH:mm:ss");
-	  String btime = now.format(time);
-	  b.setBookingtime(btime);
-	  b.setCustomer(c);
-	  b.setDestinationloc(destinationCoordinates);
-	  b.setPickuploc(sourceCoordinates);
-	  b.setDroptime(null);
-	 Map<String, Object> fares =(Map<String, Object>) redata.get("Fares");
-	  String vfair = String.valueOf(fares.get(vehc));
-	  b.setFare(vfair);
-	  b.setPaymenttype("Pending");
-	  b.setPickuploc(sourceCoordinates);
-	  b.setPickuptime(null);
-	  b.setRiderid(1);
-	  b.setVehicletype(vehc);
-	  b.setSource(sourceco);
-	  b.setDestination(destinationco);
-	  bookrepo.save(b);
-	  redistemplate.delete(id);
-	  ResponseStructure<String> rs = new ResponseStructure<String>();
-	  rs.setStatuscode(HttpStatus.ACCEPTED.value());
-	  rs.setMessage("Booking Done");
-	  rs.setData("Booked");
-	  return rs;
+	        Booking b = existingBooking.get();
+
+	        Map<String, Object> bookingData = new HashMap<>();
+
+	        bookingData.put("bookingId", b.getId());
+	        bookingData.put("fare", b.getFare());
+	        bookingData.put("customerName", b.getCustomer().getName());
+	        bookingData.put("customerMobileNumber", b.getCustomer().getMobile());
+	        bookingData.put("otp", b.getCustomer().getOtp());     
+	        ResponseStructure<Map<String, Object>> rs =  new ResponseStructure<>();
+	        rs.setStatuscode(HttpStatus.OK.value());
+	        rs.setMessage("Booking Already Exists");
+	        rs.setData(bookingData);
+	        return rs;
+	    }        
+	    String rideKey = "ride:" + rideId;
+	    Map<String, Object> redata = redistemplate.opsForValue().get(rideKey);
+	    if (redata == null) {	       
+
+	        ResponseStructure<Map<String, Object>> rs =  new ResponseStructure<>();
+	        rs.setStatuscode(HttpStatus.NOT_FOUND.value());
+	        rs.setMessage("Ride Not Found");
+	        rs.setData(null);
+	        return rs;
+	        
+	    }
+	    String status = String.valueOf(redata.get("status"));
+	    if (!status.equals("REQUESTED")) {
+
+	        ResponseStructure<Map<String, Object>> rs = new ResponseStructure<>();
+	        rs.setStatuscode(HttpStatus.CONFLICT.value());
+	        rs.setMessage("Ride Already Accepted");
+	        rs.setData(null);
+             return rs;
+	    }
+
+	    double slati = Double.parseDouble( String.valueOf(redata.get("pickupLatitude")));
+	    double slong = Double.parseDouble( String.valueOf(redata.get("pickupLongitude")));   
+	    double dlati = Double.parseDouble(String.valueOf(redata.get("dropLatitude")));
+	    double dlong = Double.parseDouble( String.valueOf(redata.get("dropLongitude")));
+	    Coordinates sourceco = new Coordinates();   
+	    sourceco.setLati(slati);
+	    sourceco.setLongi(slong);
+	    Coordinates destinationco = new Coordinates();
+	    destinationco.setLati(dlati);
+	    destinationco.setLongi(dlong);
+	    coordinateRepo.save(sourceco);
+	    coordinateRepo.save(destinationco);
+	    Booking b = new Booking();
+	    LocalDate today = LocalDate.now();
+
+	    DateTimeFormatter date =DateTimeFormatter.ofPattern("dd-MM-yyyy");
+        String bdate = today.format(date);
+
+	    b.setBookingdate(bdate);
+
+	   
+	    LocalTime now = LocalTime.now();
+
+	    DateTimeFormatter time =DateTimeFormatter.ofPattern("HH:mm:ss");
+	    String btime = now.format(time);
+
+	    b.setBookingtime(btime);
+
+	   
+	    b.setCustomer(c);
+
+	    b.setDestinationloc(String.valueOf(dlati) + "," + String.valueOf(dlong));
+        b.setPickuploc(String.valueOf(slati) + "," + String.valueOf(slong));
+        b.setDroptime(null);
+
+	    b.setFare("0");
+
+	    b.setPaymenttype("Pending");
+
+	    b.setPickuptime(null);
+
+	    b.setRiderid(riderId);
+
+	    b.setVehicletype(vehc);
+
+	    b.setSource(sourceco);
+
+	    b.setDestination(destinationco);
+
+	   
+	    b.setStatus("CONFIRMED");
+
+
+	    bookrepo.save(b);
+
+	    bookingRedisTemplate.opsForValue()  .set("booking:" + b.getId(),String.valueOf(rideId)    );
+
+	    System.out.println("Booking ID = " + b.getId());
+	    System.out.println("Ride ID = " + rideId);
+
+	    String test =bookingRedisTemplate.opsForValue().get("booking:" + b.getId());
+        System.out.println( "Redis booking mapping = " + test);
+        redata.put("status", "ACCEPTED");
+        redata.put("riderId", riderId);
+        redata.put("bookingId", b.getId());
+
+		   redistemplate.opsForValue().set(rideKey, redata);
+	       Map<String, Object> bookingData = new HashMap<>();
+	       bookingData.put(  "bookingId", b.getId());     
+	       bookingData.put("fare",b.getFare());
+	       bookingData.put("customerName", c.getName());
+		   bookingData.put(  "customerMobileNumber",  c.getMobile());
+		   bookingData.put( "otp", c.getOtp());    
+		   ResponseStructure<Map<String, Object>> rs =new ResponseStructure<>();
+		   rs.setStatuscode( HttpStatus.ACCEPTED.value());
+		   rs.setMessage("Booking Done");
+		   rs.setData(bookingData);        
+		   return rs;
 	}
 
 public List<String> requestRide(int cid, String vehc, CustomerRideRequestDto dto) {
@@ -383,8 +458,21 @@ public List<String> requestRide(int cid, String vehc, CustomerRideRequestDto dto
 	Point p = new Point(dto.getPickupLongitude(), dto.getPickupLatitude());
 	Circle ci = new Circle(p,new Distance(2, Metrics.KILOMETERS));
 	GeoResults<GeoLocation<String>> results = geoRedisTemplate.opsForGeo().search(vehc.toLowerCase(), ci);
-	
+	int rideId = new Random().nextInt(9000) + 1000;
+	Map<String, Object> rideData = new HashMap<>();
+
+	    rideData.put("rideId", rideId);
+	    rideData.put("customerId", cid);
+	    rideData.put("vehicleType", vehc);
+	    rideData.put("pickupLatitude", dto.getPickupLatitude());
+	    rideData.put("pickupLongitude", dto.getPickupLongitude());
+	    rideData.put("dropLatitude", dto.getDropLatitude());
+	    rideData.put("dropLongitude", dto.getDropLongitude());
+	    rideData.put("status", "REQUESTED");
+	    rideData.put("riderId", null);
+	    redistemplate.opsForValue().set("ride:" + rideId, rideData);
 	RideRequestDto rd = new RideRequestDto();
+	rd.setRideId(rideId);
 	rd.setCustomerId(cid);
 	rd.setVehicleType(vehc);
 	rd.setPickupLongitude(dto.getPickupLongitude());
@@ -402,9 +490,62 @@ public List<String> requestRide(int cid, String vehc, CustomerRideRequestDto dto
 	
 	return sent;
 }
+
+public ResponseStructure<CustomerRideRequestDto> getBookingLocation(int bookingId) {
+	 Booking b = bookrepo.findById(bookingId).orElseThrow(() -> new RuntimeException("Booking Not Found"));
+
+	    CustomerRideRequestDto dto = new CustomerRideRequestDto();
+        dto.setPickupLatitude(b.getSource().getLati());
+	    dto.setPickupLongitude(b.getSource().getLongi());
+        
+	    dto.setDropLatitude(b.getDestination().getLati());
+	    dto.setDropLongitude(b.getDestination().getLongi());
+
+	    ResponseStructure<CustomerRideRequestDto> rs = new ResponseStructure<>();
+
+	    rs.setStatuscode(HttpStatus.OK.value());
+	    rs.setMessage("Booking Location Found");
+	    rs.setData(dto);
+        return rs;
+}
+
+
+public ResponseStructure<String> verifyOtp(int bookingId,String otp) {
+	Booking b = bookrepo.findById(bookingId) .orElseThrow(() -> new BookingNotFound());
+	String customerOtp = b.getCustomer().getOtp();
+    ResponseStructure<String> rs = new ResponseStructure<>();
+    if (customerOtp.equals(otp)) {
+    	System.out.println("OTP MATCHED");
+        LocalTime now = LocalTime.now();
+        DateTimeFormatter time =DateTimeFormatter.ofPattern("HH:mm:ss");
+        b.setStatus("STARTED");
+        b.setPickuptime(now.format(time));
+        bookrepo.save(b);
+        rs.setStatuscode(HttpStatus.OK.value());
+        rs.setMessage("OTP Verified. Ride Started");
+        rs.setData("STARTED");
+
+    } else {
+    	System.out.println("OTP NOT MATCHED");
+        rs.setStatuscode(HttpStatus.BAD_REQUEST.value());
+        rs.setMessage("Invalid OTP");
+        rs.setData("OTP Verification Failed");
+    }
+
+    return rs;
+
+}
+
+public List<Booking> ridehistoryy(int cid, String status) {
+	if(status.equalsIgnoreCase("ALL")) {
+        return bookrepo.findByCustomerId(cid);
+    }
+	return bookrepo.findByCustomerIdAndStatus(cid, status);	
+}
+
 	
-	
-	
-	
+
+
+
 
 }

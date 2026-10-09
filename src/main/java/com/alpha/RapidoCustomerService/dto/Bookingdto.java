@@ -15,6 +15,7 @@ public class Bookingdto {
 		private String pickuptime;
 		private String droptime;
 		private String fare;
+	
 		public Bookingdto() {
 			super();
 		}
@@ -31,8 +32,7 @@ public class Bookingdto {
 			this.bookingdate = bookingdate;
 			this.bookingtime = bookingtime;
 			this.pickuptime = pickuptime;
-			this.droptime = droptime;
-			this.fare = fare;
+		
 		}
 
 		public Customer getCustomer() {
@@ -111,6 +111,7 @@ public class Bookingdto {
 		public void setFare(String fare) {
 			this.fare = fare;
 		}
+
 		
 		
 	}
